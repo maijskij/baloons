@@ -4,9 +4,11 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.Handler
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+
 
 
 class GameField @JvmOverloads constructor(
@@ -16,11 +18,34 @@ class GameField @JvmOverloads constructor(
         defStyleRes: Int = 0
 ) : View(context, attrs, defStyleAttr, defStyleRes) {
 
+    private val redrawHandler = Handler()
+    private val balloonGenerationHandler = Handler()
+
     private val balloons = ArrayList<Balloon>()
     private val paint = Paint()
 
+    private val invalidateRunnable = Runnable {
+        invalidate()
+        scheduleNextRedraw()
+    }
+
+    private val balloonGenerationRunnable = Runnable {
+        generateAndDrawCircle()
+        scheduleNextBalloonGeneration()
+    }
+
+    private fun scheduleNextRedraw(){
+        redrawHandler.postDelayed(invalidateRunnable, 500)
+    }
+
+    private fun scheduleNextBalloonGeneration(){
+        balloonGenerationHandler.postDelayed(balloonGenerationRunnable, 1000)
+    }
+
     init {
         paint.style = Paint.Style.FILL
+
+        startBalloonGenerationLoop()
     }
 
     override fun onDraw(canvas: Canvas?) {
@@ -32,7 +57,7 @@ class GameField @JvmOverloads constructor(
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
         super.onSizeChanged(w, h, oldw, oldh)
 
-        generateAndDrawCircle()
+        startDrawingLoop()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -52,7 +77,6 @@ class GameField @JvmOverloads constructor(
             if (balloon.isTouched(x, y)) {
                 balloonsIterator.remove()
                 invalidate()
-                generateAndDrawCircle()
                 return true
             }
         }
@@ -60,9 +84,20 @@ class GameField @JvmOverloads constructor(
         return false
     }
 
+    private fun startDrawingLoop(){
+        redrawHandler.removeCallbacksAndMessages(null)
+        scheduleNextRedraw()
+    }
+
+    private fun startBalloonGenerationLoop(){
+        balloonGenerationHandler.removeCallbacksAndMessages(null)
+        scheduleNextBalloonGeneration()
+    }
+
     private fun generateAndDrawCircle() {
-        balloons.add(Balloon.newRandomInstance(width, height))
-        invalidate()
+        Balloon.newValidatedBalloon(width, height, balloons)?.let {
+            balloons.add(it)
+        }
     }
 
     private fun drawBalloons(canvas: Canvas?) {
